@@ -5,6 +5,7 @@ library(oligo)
 library(ggplot2)
 library(affy)
 library(limma)
+library(tidyverse)
 celpath = "data/"
 CELFiles <- list.files(celpath,full.names=TRUE, pattern = "CEL")
 rawData <- read.celfiles(CELFiles)
@@ -45,6 +46,14 @@ color=c('green','green','green',"green",'red','red','red','red')
 data.PC = prcomp(t(data.matrix),scale.=TRUE)
 plot(data.PC$x[,1:2],col=color)
 
+#== gene ID transform-------------------------
+library(mogene20sttranscriptcluster.db)
+library("AnnotationDbi")
+probeId <- rownames(data.matrix)
+OUT <- select(mogene20sttranscriptcluster.db,keys= probeId, columns=c("SYMBOL", "ENTREZID", "GENENAME"),keytype="PROBEID")
+dim(na.omit(OUT))
+dim(OUT)
+
 #== DE analysis-----------------------------------------
 ph@data[ ,2] = c("control","control","control","control","mutant","mutant","mutant","mutant")
 colnames(ph@data)[2]="source"
@@ -58,15 +67,11 @@ contrast.matrix = makeContrasts(mutant-control,levels=design)
 data.fit.con = contrasts.fit(data.fit,contrast.matrix)
 data.fit.eb = eBayes(data.fit.con)
 options(digits=2)
-tab = topTable(data.fit.eb,coef=1,number = 2000,adjust.method="BH")
-
-#== gene ID transform-------------------------
-library(mogene20sttranscriptcluster.db)
-library("AnnotationDbi")
-probeId <- rownames(data.matrix)
-OUT <- select(mogene20sttranscriptcluster.db,keys= probeId, columns=c("SYMBOL", "ENTREZID", "GENENAME"),keytype="PROBEID")
-dim(na.omit(OUT))
-dim(OUT)
+tab = topTable(data.fit.eb,coef=1,number = Inf,adjust.method="BH")
+annoTab <- tab %>%rownames_to_column("PROBEID")%>%
+  left_join(OUT)
+write_csv(annoTab,"result/annoDE.csv")
+write.table(data.matrix,"result/norm_matrix.txt",sep = "\t",row.names = T,quote = F)
 
 
-#== 
+
